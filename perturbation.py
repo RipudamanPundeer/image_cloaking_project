@@ -9,14 +9,17 @@ transform = transforms.Compose([
     transforms.ToTensor()
 ])
 
-def generate_adversarial(image, epsilon=0.01):
+def generate_adversarial(image, epsilon=0.012):
 
     tensor = transform(image).unsqueeze(0)
     tensor.requires_grad = True
 
+    original_embedding = model(tensor).detach()
+
     embedding = model(tensor)
 
-    loss = embedding.norm()
+    loss = -torch.nn.functional.cosine_similarity(embedding, original_embedding).mean()
+
     loss.backward()
 
     perturbation = epsilon * tensor.grad.sign()
