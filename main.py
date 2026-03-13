@@ -1,46 +1,112 @@
 import cv2
-from preprocess import load_image
-from evaluation import get_embedding, cosine_similarity, compute_ssim
-from perturbation import generate_adversarial
-from robustness import simulate_compression
 import numpy as np
-# Load image
-image = load_image("images/test.jpg")
 
-# Generate cloaked image
-epsilon = 0.03   # medium protection 0.08 - 0.018
-perturbed = generate_adversarial(image, epsilon)
+from preprocess import load_image
+from perturbation import generate_adversarial
+from evaluation import get_embedding, cosine_similarity, compute_ssim
 
-compressed = simulate_compression(perturbed)
 
-# Compute embeddings
-embedding_original = get_embedding(image)
-embedding_perturbed = get_embedding(compressed)
+# ----------------------------
+# SETTINGS
+# ----------------------------
 
-# Similarity between embeddings
-similarity = cosine_similarity(embedding_original, embedding_perturbed)
+IMAGE_PATH = "images/IMG_6032.JPG"
+EPSILON = 0.012
 
-# Visual similarity
-ssim_score = compute_ssim(image, compressed)
 
-print("Embedding similarity:", similarity.item())
+# ----------------------------
+# LOAD IMAGE
+# ----------------------------
+
+original, resized = load_image(IMAGE_PATH)
+
+
+# ----------------------------
+# GENERATE ADVERSARIAL IMAGE
+# ----------------------------
+
+protected_resized = generate_adversarial(resized, EPSILON)
+
+
+# ----------------------------
+# COMPUTE PERTURBATION
+# ----------------------------
+
+noise = protected_resized.astype(float) - resized.astype(float)
+
+
+# ----------------------------
+# UPSCALE NOISE TO ORIGINAL SIZE
+# ----------------------------
+
+noise_upscaled = cv2.resize(
+    noise,
+    (original.shape[1], original.shape[0]),
+    interpolation=cv2.INTER_LINEAR
+)
+
+
+# ----------------------------
+# APPLY PERTURBATION
+# ----------------------------
+
+protected_full = original.astype(float) + noise_upscaled
+protected_full = np.clip(protected_full, 0, 255).astype(np.uint8)
+
+
+# ----------------------------
+# EVALUATION METRICS
+# ----------------------------
+
+embedding_original = get_embedding(resized)
+embedding_protected = get_embedding(protected_resized)
+
+similarity = cosine_similarity(
+    embedding_original,
+    embedding_protected
+).item()
+
+ssim_score = compute_ssim(resized, protected_resized)
+
+
+print("Embedding similarity:", similarity)
 print("SSIM score:", ssim_score)
 
-# Show images
-cv2.imshow("Original Image", image)
-cv2.imshow("Protected Image", perturbed)
 
-noise = perturbed.astype(float) - image.astype(float)
-cv2.imshow("Perturbation Pattern", noise / noise.max())
+# ----------------------------
+# HEATMAP VISUALIZATION
+# ----------------------------
 
-cv2.imshow("Compressed Protected Image", compressed)
+noise_abs = np.abs(noise)
 
-noise = perturbed.astype(float) - image.astype(float)
+max_val = noise_abs.max()
 
-# normalize for visualization
-noise_vis = (noise - noise.min()) / (noise.max() - noise.min())
+if max_val == 0:
+    noise_vis = noise_abs
+else:
+    noise_vis = noise_abs / max_val
 
-cv2.imshow("Perturbation Pattern", noise_vis)
+
+heatmap = (noise_vis * 255).astype(np.uint8)
+heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
+
+
+# ----------------------------
+# DISPLAY WINDOWS
+# ----------------------------
+
+cv2.namedWindow("Original Image", cv2.WINDOW_NORMAL)
+cv2.namedWindow("Protected Image", cv2.WINDOW_NORMAL)
+cv2.namedWindow("Perturbation Heatmap", cv2.WINDOW_NORMAL)
+
+cv2.resizeWindow("Original Image", 700, 700)
+cv2.resizeWindow("Protected Image", 700, 700)
+cv2.resizeWindow("Perturbation Heatmap", 700, 700)
+
+cv2.imshow("Original Image", original)
+cv2.imshow("Protected Image", protected_full)
+cv2.imshow("Perturbation Heatmap", heatmap)
+
 
 cv2.waitKey(0)
 cv2.destroyAllWindows()
