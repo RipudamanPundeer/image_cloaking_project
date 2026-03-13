@@ -18,11 +18,14 @@ def generate_adversarial(image, epsilon=0.012):
     face_box = detect_face(image)
 
     if face_box is None:
-        return image
+        # fallback: perturb entire image
+        face = image
+        x1, y1 = 0, 0
+        x2, y2 = image.shape[1], image.shape[0]
+    else:
+        x1, y1, x2, y2 = face_box
+        face = image[y1:y2, x1:x2]
 
-    x1, y1, x2, y2 = face_box
-
-    face = image[y1:y2, x1:x2]
 
     # resize face to model size
     face = cv2.resize(face, (160,160))

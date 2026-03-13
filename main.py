@@ -4,14 +4,14 @@ import numpy as np
 from preprocess import load_image
 from perturbation import generate_adversarial
 from evaluation import get_embedding, cosine_similarity, compute_ssim
-
+from face_detection import detect_face
 
 # ----------------------------
 # SETTINGS
 # ----------------------------
 
-IMAGE_PATH = "images/IMG_6032.JPG"
-EPSILON = 0.012
+IMAGE_PATH = "images/IMG_6191.JPG"
+EPSILON = 0.008
 
 
 # ----------------------------
@@ -20,7 +20,19 @@ EPSILON = 0.012
 
 original, resized = load_image(IMAGE_PATH)
 
+face_box = detect_face(original)
+display_original = original.copy()
 
+if face_box is not None:
+    x1, y1, x2, y2 = face_box
+    print("Face box:", x1, y1, x2, y2)
+
+    h, w = display_original.shape[:2]
+    x1 = max(0, x1)
+    y1 = max(0, y1)
+    x2 = min(w, x2)
+    y2 = min(h, y2)
+    cv2.rectangle(display_original, (x1, y1), (x2, y2), (0,255,0), 3)
 # ----------------------------
 # GENERATE ADVERSARIAL IMAGE
 # ----------------------------
@@ -53,7 +65,7 @@ noise_upscaled = cv2.resize(
 protected_full = original.astype(float) + noise_upscaled
 protected_full = np.clip(protected_full, 0, 255).astype(np.uint8)
 
-
+comparison = np.hstack((original, protected_full))
 # ----------------------------
 # EVALUATION METRICS
 # ----------------------------
@@ -98,15 +110,21 @@ heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
 cv2.namedWindow("Original Image", cv2.WINDOW_NORMAL)
 cv2.namedWindow("Protected Image", cv2.WINDOW_NORMAL)
 cv2.namedWindow("Perturbation Heatmap", cv2.WINDOW_NORMAL)
+cv2.namedWindow("Original vs Protected", cv2.WINDOW_NORMAL)
+
+
 
 cv2.resizeWindow("Original Image", 700, 700)
 cv2.resizeWindow("Protected Image", 700, 700)
 cv2.resizeWindow("Perturbation Heatmap", 700, 700)
+cv2.resizeWindow("Original vs Protected", 1200, 600)
 
-cv2.imshow("Original Image", original)
+cv2.imshow("Original Image", display_original)
 cv2.imshow("Protected Image", protected_full)
 cv2.imshow("Perturbation Heatmap", heatmap)
+cv2.imshow("Original vs Protected", comparison)
 
+cv2.imshow("Original vs Protected", comparison)
 
 cv2.waitKey(0)
 cv2.destroyAllWindows()
