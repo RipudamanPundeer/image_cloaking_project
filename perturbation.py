@@ -13,47 +13,51 @@ transform = transforms.Compose([
 
 
 
-def generate_adversarial(image, epsilon=0.012):
+def generate_adversarial(image, epsilon=0.012, steps=10, alpha=0.01):
 
     face_box = detect_face(image)
 
     if face_box is None:
-        # fallback: perturb entire image
-        face = image
         x1, y1 = 0, 0
         x2, y2 = image.shape[1], image.shape[0]
+        face = image
     else:
         x1, y1, x2, y2 = face_box
         face = image[y1:y2, x1:x2]
 
-
-    # resize face to model size
-    face = cv2.resize(face, (160,160))
+    face = cv2.resize(face,(160,160))
 
     tensor = transform(face).unsqueeze(0)
-    tensor.requires_grad = True
+    original = tensor.clone().detach()
 
-    original_embedding = model(tensor).detach()
-    embedding = model(tensor)
+    original_embedding = model(original).detach()
 
-    loss = -torch.nn.functional.cosine_similarity(
-        embedding, original_embedding
-    ).mean()
+    for _ in range(steps):
 
-    loss.backward()
+        tensor.requires_grad = True
 
-    perturbation = epsilon * tensor.grad.sign()
+        embedding = model(tensor)
 
-    adv_face = tensor + perturbation
-    adv_face = torch.clamp(adv_face, 0, 1)
+        loss = -torch.nn.functional.cosine_similarity(embedding,original_embedding).mean()
 
-    adv_face = adv_face.squeeze().permute(1,2,0).detach().numpy()
+        #loss = torch.nn.functional.mse_loss(embedding, original_embedding)
+
+        loss.backward()
+
+        perturbation = alpha * tensor.grad.sign()
+
+        tensor = tensor + perturbation
+
+        # project perturbation within epsilon-ball
+        delta = torch.clamp(tensor - original, -epsilon, epsilon)
+        tensor = torch.clamp(original + delta, 0, 1).detach()
+
+    adv_face = tensor.squeeze().permute(1,2,0).numpy()
     adv_face = (adv_face * 255).astype(np.uint8)
 
-    # resize back to original face region size
-    adv_face = cv2.resize(adv_face, (x2-x1, y2-y1))
+    adv_face = cv2.resize(adv_face,(x2-x1,y2-y1))
 
     adv_image = image.copy()
-    adv_image[y1:y2, x1:x2] = adv_face
+    adv_image[y1:y2,x1:x2] = adv_face
 
     return adv_image

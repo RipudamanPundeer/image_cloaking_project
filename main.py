@@ -10,8 +10,8 @@ from face_detection import detect_face
 # SETTINGS
 # ----------------------------
 
-IMAGE_PATH = "images/IMG_6191.JPG"
-EPSILON = 0.008
+IMAGE_PATH = "images/test.jpg"
+EPSILON = 0.03
 
 
 # ----------------------------
@@ -45,6 +45,7 @@ protected_resized = generate_adversarial(resized, EPSILON)
 # ----------------------------
 
 noise = protected_resized.astype(float) - resized.astype(float)
+print("Noise magnitude:", np.mean(np.abs(noise)))
 
 
 # ----------------------------
