@@ -1,19 +1,30 @@
-import torch
-import torchvision.transforms as transforms
 from facenet_pytorch import InceptionResnetV1
+import torch
 import numpy as np
-from face_detection import detect_face
 import cv2
+import torch.nn.functional as F
+from torchvision import transforms
 
+from face_detection import detect_face
 model = InceptionResnetV1(pretrained='vggface2').eval()
+
+
+# ---------------------------
+# IMAGE TRANSFORM
+# ---------------------------
 
 transform = transforms.Compose([
     transforms.ToTensor()
 ])
 
 
+# ---------------------------
+# ADVERSARIAL GENERATOR
+# ---------------------------
 
-def generate_adversarial(image, epsilon=0.012, steps=10, alpha=0.01):
+def generate_adversarial(image, epsilon=0.03, steps=10, alpha=0.007):
+
+    device = next(model.parameters()).device
 
     face_box = detect_face(image)
 
@@ -23,41 +34,146 @@ def generate_adversarial(image, epsilon=0.012, steps=10, alpha=0.01):
         face = image
     else:
         x1, y1, x2, y2 = face_box
+        x1 = max(0, x1)
+        y1 = max(0, y1)
+        x2 = min(image.shape[1], x2)
+        y2 = min(image.shape[0], y2)
+
         face = image[y1:y2, x1:x2]
 
-    face = cv2.resize(face,(160,160))
 
-    tensor = transform(face).unsqueeze(0)
+    # resize face
+    face = cv2.resize(face, (160,160))
+
+
+    tensor = transform(face).unsqueeze(0).to(device)
+
     original = tensor.clone().detach()
 
-    original_embedding = model(original).detach()
+
+    # ---------------------------
+    # CREATE SPATIAL MASK
+    # ---------------------------
+
+    h, w = 160, 160
+
+    mask = np.zeros((h,w))
+
+    center_x = w//2
+    center_y = h//2
+
+    for y in range(h):
+        for x in range(w):
+
+            dist = np.sqrt((x-center_x)**2 + (y-center_y)**2)
+
+            mask[y,x] = np.exp(-dist/60)
+
+    mask = mask / mask.max()
+
+    mask_tensor = torch.tensor(mask).unsqueeze(0).unsqueeze(0).float().to(device)
+
+
+    # ---------------------------
+    # ORIGINAL EMBEDDING
+    # ---------------------------
+
+    with torch.no_grad():
+        original_embedding = model(original)
+
+
+    adv = original.clone().detach()
+
+
+    # ---------------------------
+    # PGD LOOP
+    # ---------------------------
 
     for _ in range(steps):
 
-        tensor.requires_grad = True
+        adv = adv.clone().detach().requires_grad_(True)
 
-        embedding = model(tensor)
+        embedding = model(adv)
 
-        loss = -torch.nn.functional.cosine_similarity(embedding,original_embedding).mean()
+        loss = -F.cosine_similarity(
+            embedding,
+            original_embedding
+        ).mean()
 
-        #loss = torch.nn.functional.mse_loss(embedding, original_embedding)
+        grad = torch.autograd.grad(loss, adv)[0]
 
-        loss.backward()
 
-        perturbation = alpha * tensor.grad.sign()
+        # ---------------------------
+        # MULTI-SCALE GRADIENT
+        # ---------------------------
 
-        tensor = tensor + perturbation
+        small = F.interpolate(
+            adv.detach(),
+            size=(80,80),
+            mode="bilinear",
+            align_corners=False
+        ).requires_grad_(True)
 
-        # project perturbation within epsilon-ball
-        delta = torch.clamp(tensor - original, -epsilon, epsilon)
-        tensor = torch.clamp(original + delta, 0, 1).detach()
+        small_up = F.interpolate(
+            small,
+            size=(160,160),
+            mode="bilinear",
+            align_corners=False
+        )
 
-    adv_face = tensor.squeeze().permute(1,2,0).numpy()
+        emb_small = model(small_up)
+
+        loss_small = -F.cosine_similarity(
+            emb_small,
+            original_embedding
+        ).mean()
+
+        grad_small = torch.autograd.grad(loss_small, small)[0]
+
+        grad_small = F.interpolate(
+            grad_small,
+            size=(160,160),
+            mode="bilinear",
+            align_corners=False
+        )
+
+
+        combined_grad = (grad + grad_small) / 2
+
+
+        # ---------------------------
+        # APPLY MASK
+        # ---------------------------
+
+        perturbation = alpha * combined_grad.sign() * mask_tensor
+
+
+        adv = adv + perturbation
+
+
+        # ---------------------------
+        # EPSILON PROJECTION
+        # ---------------------------
+
+        delta = torch.clamp(adv - original, -epsilon, epsilon)
+
+        adv = torch.clamp(original + delta, 0, 1).detach()
+
+
+    # ---------------------------
+    # RECONSTRUCT IMAGE
+    # ---------------------------
+
+    adv_face = adv.squeeze().permute(1,2,0).cpu().numpy()
+
     adv_face = (adv_face * 255).astype(np.uint8)
 
-    adv_face = cv2.resize(adv_face,(x2-x1,y2-y1))
+    adv_face = cv2.resize(adv_face, (x2-x1, y2-y1))
+
 
     adv_image = image.copy()
-    adv_image[y1:y2,x1:x2] = adv_face
+
+    adv_image[y1:y2, x1:x2] = adv_face
+
 
     return adv_image
