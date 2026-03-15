@@ -10,7 +10,7 @@ from face_detection import detect_face
 # SETTINGS
 # ----------------------------
 
-IMAGE_PATH = "images/test.jpg"
+IMAGE_PATH = "images/IMG_3196.JPG"
 EPSILON = 0.03
 
 
