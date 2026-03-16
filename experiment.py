@@ -14,7 +14,7 @@ from evaluation import get_embedding, cosine_similarity, compute_ssim
 
 IMAGE_FOLDER = "images"
 
-epsilons = [0.005,0.01,0.015,0.02,0.025,0.03,0.035,0.04]
+epsilons = [0.005,0.01,0.015,0.02,0.025,0.03,0.035]
 
 
 avg_similarity = []
@@ -41,7 +41,11 @@ def compress_image(image, quality=60):
     return decimg
 
 
-images = os.listdir(IMAGE_FOLDER)
+# -----------------------------
+# LOAD IMAGE LIST
+# -----------------------------
+
+images = sorted(os.listdir(IMAGE_FOLDER))
 
 
 # -----------------------------
@@ -59,11 +63,15 @@ for epsilon in epsilons:
 
     for img in images:
 
-        path = os.path.join(IMAGE_FOLDER,img)
+        path = os.path.join(IMAGE_FOLDER, img)
 
-        original, image = load_image(path)
+        # skip non-image files
+        if not img.lower().endswith((".jpg",".jpeg",".png")):
+            continue
 
-        protected = generate_adversarial(image,epsilon)
+        image = load_image(path)
+
+        protected = generate_adversarial(image, epsilon)
 
         compressed = compress_image(protected)
 
@@ -84,11 +92,11 @@ for epsilon in epsilons:
             emb_compressed
         ).item()
 
-        ssim_score = compute_ssim(image,protected)
+        ssim_score = compute_ssim(image, protected)
 
 
         # noise magnitude
-        noise = protected.astype(float) - image.astype(float)
+        noise = protected.astype(np.float32) - image.astype(np.float32)
         noise_mag = np.mean(np.abs(noise))
 
 
@@ -116,7 +124,7 @@ print("\nFinished experiments")
 
 plt.figure(figsize=(6,4))
 
-plt.plot(epsilons,avg_similarity,marker='o')
+plt.plot(epsilons, avg_similarity, marker='o')
 
 plt.title("Embedding Similarity vs Perturbation Strength")
 
@@ -128,14 +136,13 @@ plt.grid(True)
 plt.show()
 
 
-
 # -----------------------------
 # GRAPH 2: epsilon vs SSIM
 # -----------------------------
 
 plt.figure(figsize=(6,4))
 
-plt.plot(epsilons,avg_ssim,marker='o')
+plt.plot(epsilons, avg_ssim, marker='o')
 
 plt.title("SSIM vs Perturbation Strength")
 
@@ -147,14 +154,13 @@ plt.grid(True)
 plt.show()
 
 
-
 # -----------------------------
-# GRAPH 3: epsilon vs compression similarity
+# GRAPH 3: compression robustness
 # -----------------------------
 
 plt.figure(figsize=(6,4))
 
-plt.plot(epsilons,avg_compressed,marker='o')
+plt.plot(epsilons, avg_compressed, marker='o')
 
 plt.title("Similarity After Compression vs Perturbation Strength")
 
@@ -166,19 +172,17 @@ plt.grid(True)
 plt.show()
 
 
-
 # -----------------------------
-# GRAPH 4: histogram of similarities
+# GRAPH 4: similarity distribution
 # -----------------------------
 
 plt.figure(figsize=(6,4))
 
-plt.hist(all_similarities,bins=10)
+plt.hist(all_similarities, bins=12)
 
 plt.title("Distribution of Embedding Similarity")
 
 plt.xlabel("Similarity")
-
 plt.ylabel("Number of Images")
 
 plt.grid(True)
@@ -186,19 +190,17 @@ plt.grid(True)
 plt.show()
 
 
-
 # -----------------------------
-# GRAPH 5: scatter SSIM vs similarity
+# GRAPH 5: SSIM vs similarity
 # -----------------------------
 
 plt.figure(figsize=(6,4))
 
-plt.scatter(all_ssim,all_similarities)
+plt.scatter(all_ssim, all_similarities)
 
 plt.title("SSIM vs Embedding Similarity")
 
 plt.xlabel("SSIM")
-
 plt.ylabel("Similarity")
 
 plt.grid(True)
@@ -206,19 +208,17 @@ plt.grid(True)
 plt.show()
 
 
-
 # -----------------------------
-# GRAPH 6: epsilon vs noise magnitude
+# GRAPH 6: epsilon vs noise
 # -----------------------------
 
 plt.figure(figsize=(6,4))
 
-plt.plot(epsilons,avg_noise,marker='o')
+plt.plot(epsilons, avg_noise, marker='o')
 
 plt.title("Noise Magnitude vs Perturbation Strength")
 
 plt.xlabel("Epsilon")
-
 plt.ylabel("Average Noise Magnitude")
 
 plt.grid(True)

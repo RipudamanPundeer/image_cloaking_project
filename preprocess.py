@@ -1,9 +1,11 @@
 import cv2
 
+
 def load_image(path):
 
-    original = cv2.imread(path)
+    image = cv2.imread(path)
 
-    resized = cv2.resize(original,(224,224))
+    if image is None:
+        raise ValueError(f"Could not load image: {path}")
 
-    return original, resized
+    return image

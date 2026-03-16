@@ -1,4 +1,4 @@
-from facenet_pytorch import InceptionResnetV1
+from evaluation import model
 import torch
 import numpy as np
 import cv2
@@ -6,11 +6,10 @@ import torch.nn.functional as F
 from torchvision import transforms
 
 from face_detection import detect_face
-model = InceptionResnetV1(pretrained='vggface2').eval()
 
 
 # ---------------------------
-# IMAGE TRANSFORM
+# TRANSFORM
 # ---------------------------
 
 transform = transforms.Compose([
@@ -22,9 +21,14 @@ transform = transforms.Compose([
 # ADVERSARIAL GENERATOR
 # ---------------------------
 
-def generate_adversarial(image, epsilon=0.03, steps=10, alpha=0.007):
+def generate_adversarial(image, epsilon=0.02, steps=10, alpha=0.0045):
 
     device = next(model.parameters()).device
+
+
+    # ---------------------------
+    # FACE DETECTION
+    # ---------------------------
 
     face_box = detect_face(image)
 
@@ -34,6 +38,7 @@ def generate_adversarial(image, epsilon=0.03, steps=10, alpha=0.007):
         face = image
     else:
         x1, y1, x2, y2 = face_box
+
         x1 = max(0, x1)
         y1 = max(0, y1)
         x2 = min(image.shape[1], x2)
@@ -42,9 +47,11 @@ def generate_adversarial(image, epsilon=0.03, steps=10, alpha=0.007):
         face = image[y1:y2, x1:x2]
 
 
-    # resize face
-    face = cv2.resize(face, (160,160))
+    # ---------------------------
+    # RESIZE FACE
+    # ---------------------------
 
+    face = cv2.resize(face, (160,160))
 
     tensor = transform(face).unsqueeze(0).to(device)
 
@@ -57,17 +64,14 @@ def generate_adversarial(image, epsilon=0.03, steps=10, alpha=0.007):
 
     h, w = 160, 160
 
-    mask = np.zeros((h,w))
+    y, x = np.ogrid[:h, :w]
 
-    center_x = w//2
-    center_y = h//2
+    center_x = w // 2
+    center_y = h // 2
 
-    for y in range(h):
-        for x in range(w):
+    dist = np.sqrt((x-center_x)**2 + (y-center_y)**2)
 
-            dist = np.sqrt((x-center_x)**2 + (y-center_y)**2)
-
-            mask[y,x] = np.exp(-dist/60)
+    mask = np.exp(-dist / 60)
 
     mask = mask / mask.max()
 
@@ -142,11 +146,10 @@ def generate_adversarial(image, epsilon=0.03, steps=10, alpha=0.007):
 
 
         # ---------------------------
-        # APPLY MASK
+        # APPLY SPATIAL MASK
         # ---------------------------
 
         perturbation = alpha * combined_grad.sign() * mask_tensor
-
 
         adv = adv + perturbation
 

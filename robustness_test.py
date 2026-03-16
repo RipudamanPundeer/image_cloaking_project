@@ -8,7 +8,7 @@ from evaluation import get_embedding, cosine_similarity
 
 
 IMAGE_FOLDER = "images"
-EPSILON = 0.03
+EPSILON = 0.02
 
 
 # ---------------------------
@@ -65,7 +65,7 @@ for img in images:
 
     path = os.path.join(IMAGE_FOLDER,img)
 
-    _, image = load_image(path)
+    image = load_image(path)
 
     protected = generate_adversarial(image,EPSILON)
 

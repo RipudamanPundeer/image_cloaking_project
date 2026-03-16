@@ -6,11 +6,12 @@ from perturbation import generate_adversarial
 from evaluation import get_embedding, cosine_similarity, compute_ssim
 from face_detection import detect_face
 
+
 # ----------------------------
 # SETTINGS
 # ----------------------------
 
-IMAGE_PATH = "images/IMG_1426.JPG"
+IMAGE_PATH = "images/IMG_3616.JPG"
 EPSILON = 0.03
 
 
@@ -18,68 +19,64 @@ EPSILON = 0.03
 # LOAD IMAGE
 # ----------------------------
 
-original, resized = load_image(IMAGE_PATH)
+original = load_image(IMAGE_PATH)
 
-face_box = detect_face(original)
 display_original = original.copy()
 
+
+# ----------------------------
+# FACE DETECTION
+# ----------------------------
+
+face_box = detect_face(original)
+
 if face_box is not None:
+
     x1, y1, x2, y2 = face_box
+
     print("Face box:", x1, y1, x2, y2)
 
-    h, w = display_original.shape[:2]
+    h, w = original.shape[:2]
+
     x1 = max(0, x1)
     y1 = max(0, y1)
     x2 = min(w, x2)
     y2 = min(h, y2)
-    cv2.rectangle(display_original, (x1, y1), (x2, y2), (0,255,0), 3)
+
+    cv2.rectangle(display_original, (x1,y1), (x2,y2), (0,255,0), 3)
+
+
 # ----------------------------
 # GENERATE ADVERSARIAL IMAGE
 # ----------------------------
 
-protected_resized = generate_adversarial(resized, EPSILON)
+protected = generate_adversarial(original, EPSILON)
 
 
 # ----------------------------
-# COMPUTE PERTURBATION
+# COMPUTE NOISE
 # ----------------------------
 
-noise = protected_resized.astype(float) - resized.astype(float)
-print("Noise magnitude:", np.mean(np.abs(noise)))
+noise = protected.astype(float) - original.astype(float)
+
+noise_magnitude = np.mean(np.abs(noise))
+
+print("Noise magnitude:", noise_magnitude)
 
 
-# ----------------------------
-# UPSCALE NOISE TO ORIGINAL SIZE
-# ----------------------------
-
-noise_upscaled = cv2.resize(
-    noise,
-    (original.shape[1], original.shape[0]),
-    interpolation=cv2.INTER_LINEAR
-)
-
-
-# ----------------------------
-# APPLY PERTURBATION
-# ----------------------------
-
-protected_full = original.astype(float) + noise_upscaled
-protected_full = np.clip(protected_full, 0, 255).astype(np.uint8)
-
-comparison = np.hstack((original, protected_full))
 # ----------------------------
 # EVALUATION METRICS
 # ----------------------------
 
-embedding_original = get_embedding(resized)
-embedding_protected = get_embedding(protected_resized)
+embedding_original = get_embedding(original)
+embedding_protected = get_embedding(protected)
 
 similarity = cosine_similarity(
     embedding_original,
     embedding_protected
 ).item()
 
-ssim_score = compute_ssim(resized, protected_resized)
+ssim_score = compute_ssim(original, protected)
 
 
 print("Embedding similarity:", similarity)
@@ -87,21 +84,23 @@ print("SSIM score:", ssim_score)
 
 
 # ----------------------------
-# HEATMAP VISUALIZATION
+# HEATMAP
 # ----------------------------
 
 noise_abs = np.abs(noise)
 
-max_val = noise_abs.max()
+heatmap = noise_abs / (noise_abs.max() + 1e-8)
 
-if max_val == 0:
-    noise_vis = noise_abs
-else:
-    noise_vis = noise_abs / max_val
+heatmap = (heatmap * 255).astype(np.uint8)
 
-
-heatmap = (noise_vis * 255).astype(np.uint8)
 heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
+
+
+# ----------------------------
+# COMPARISON IMAGE
+# ----------------------------
+
+comparison = np.hstack((original, protected))
 
 
 # ----------------------------
@@ -113,18 +112,14 @@ cv2.namedWindow("Protected Image", cv2.WINDOW_NORMAL)
 cv2.namedWindow("Perturbation Heatmap", cv2.WINDOW_NORMAL)
 cv2.namedWindow("Original vs Protected", cv2.WINDOW_NORMAL)
 
-
-
 cv2.resizeWindow("Original Image", 700, 700)
 cv2.resizeWindow("Protected Image", 700, 700)
 cv2.resizeWindow("Perturbation Heatmap", 700, 700)
 cv2.resizeWindow("Original vs Protected", 1200, 600)
 
 cv2.imshow("Original Image", display_original)
-cv2.imshow("Protected Image", protected_full)
+cv2.imshow("Protected Image", protected)
 cv2.imshow("Perturbation Heatmap", heatmap)
-cv2.imshow("Original vs Protected", comparison)
-
 cv2.imshow("Original vs Protected", comparison)
 
 cv2.waitKey(0)
