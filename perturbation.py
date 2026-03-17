@@ -1,15 +1,15 @@
-from evaluation import model
 import torch
 import numpy as np
 import cv2
 import torch.nn.functional as F
 from torchvision import transforms
 
+from evaluation import model
 from face_detection import detect_face
 
 
 # ---------------------------
-# TRANSFORM
+# IMAGE TRANSFORM
 # ---------------------------
 
 transform = transforms.Compose([
@@ -21,7 +21,7 @@ transform = transforms.Compose([
 # ADVERSARIAL GENERATOR
 # ---------------------------
 
-def generate_adversarial(image, epsilon=0.02, steps=10, alpha=0.0045):
+def generate_adversarial(image, epsilon=0.02, steps=10, alpha=0.007):
 
     device = next(model.parameters()).device
 
@@ -33,10 +33,14 @@ def generate_adversarial(image, epsilon=0.02, steps=10, alpha=0.0045):
     face_box = detect_face(image)
 
     if face_box is None:
+
         x1, y1 = 0, 0
         x2, y2 = image.shape[1], image.shape[0]
+
         face = image
+
     else:
+
         x1, y1, x2, y2 = face_box
 
         x1 = max(0, x1)
@@ -83,7 +87,13 @@ def generate_adversarial(image, epsilon=0.02, steps=10, alpha=0.0045):
     # ---------------------------
 
     with torch.no_grad():
+
         original_embedding = model(original)
+
+        # random target embedding
+        target_embedding = torch.randn_like(original_embedding)
+
+        target_embedding = F.normalize(target_embedding)
 
 
     adv = original.clone().detach()
@@ -99,10 +109,16 @@ def generate_adversarial(image, epsilon=0.02, steps=10, alpha=0.0045):
 
         embedding = model(adv)
 
-        loss = -F.cosine_similarity(
-            embedding,
-            original_embedding
+
+        # ---------------------------
+        # TARGETED REPULSION LOSS
+        # ---------------------------
+
+        loss = (
+            F.cosine_similarity(embedding, original_embedding)
+            - F.cosine_similarity(embedding, target_embedding)
         ).mean()
+
 
         grad = torch.autograd.grad(loss, adv)[0]
 
@@ -127,9 +143,9 @@ def generate_adversarial(image, epsilon=0.02, steps=10, alpha=0.0045):
 
         emb_small = model(small_up)
 
-        loss_small = -F.cosine_similarity(
-            emb_small,
-            original_embedding
+        loss_small = (
+            F.cosine_similarity(emb_small, original_embedding)
+            - F.cosine_similarity(emb_small, target_embedding)
         ).mean()
 
         grad_small = torch.autograd.grad(loss_small, small)[0]

@@ -103,7 +103,7 @@ if uploaded_file is not None:
         protected = generate_adversarial(
             image,
             epsilon=epsilon,
-            steps=20
+            steps=10
         )
 
     runtime = time.time() - start_time
