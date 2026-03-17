@@ -4,8 +4,7 @@ import numpy as np
 
 from preprocess import load_image
 from perturbation import generate_adversarial
-from evaluation import get_embedding, cosine_similarity, compute_ssim
-
+from evaluation import get_embedding, cosine_similarity, compute_ssim, compute_psnr
 # -----------------------------
 # CONFIGURATION
 # -----------------------------
@@ -24,6 +23,7 @@ def evaluate_all():
 
     similarities = []
     ssim_scores = []
+    psnr_scores = []
 
     start_time = time.time()
 
@@ -42,13 +42,17 @@ def evaluate_all():
             # 3. Calculate metrics
             sim = cosine_similarity(emb_original, emb_protected).item()
             ssim_val = compute_ssim(image, protected)
+            psnr_val = compute_psnr(image, protected)
 
             similarities.append(sim)
             ssim_scores.append(ssim_val)
+            if psnr_val!=float('inf'):
+                psnr_scores.append(psnr_val)
+            else:
+                psnr_scores.append(50)
 
             # Print progress
-            print(f"[{i}/{len(images)}] {img_name} | Similarity: {sim:.3f} | SSIM: {ssim_val:.3f}")
-
+            print(f"[{i}/{len(images)}] {img_name} | Sim: {sim:.3f} | SSIM: {ssim_val:.3f} | PSNR: {psnr_val:.2f}dB")
         except Exception as e:
             print(f"[{i}/{len(images)}] Error processing {img_name}: {e}")
 
@@ -63,6 +67,7 @@ def evaluate_all():
     print(f"Total Images Processed : {len(similarities)}")
     print(f"Average Similarity     : {np.mean(similarities):.4f} (Lower is better)")
     print(f"Average SSIM           : {np.mean(ssim_scores):.4f} (Higher is better)")
+    print(f"Average PSNR           : {np.mean(psnr_scores):.2f} dB (Above 30dB is excellent)")
     print(f"Total Processing Time  : {total_time:.2f} seconds")
     print("=" * 40)
 

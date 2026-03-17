@@ -77,3 +77,10 @@ def compute_ssim(img1, img2):
     )
 
     return score
+def compute_psnr(img1, img2):
+    mse = np.mean((img1.astype(np.float32) - img2.astype(np.float32)) ** 2)
+    if mse == 0:
+        return float('inf')
+    max_pixel = 255.0
+    psnr = 20 * np.log10(max_pixel / np.sqrt(mse))
+    return psnr

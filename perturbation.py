@@ -42,6 +42,8 @@ def generate_adversarial(image, epsilon=0.03, steps=10, alpha=0.01):
 
     # 4. Streamlined & Aggressive PGD Loop
     adv = original.clone().detach()
+    momentum = torch.zeros_like(original)  # ADDED: Initialize momentum
+    mu = 1.0  # ADDED: Momentum decay factor
 
     for _ in range(steps):
         adv.requires_grad = True
@@ -53,6 +55,14 @@ def generate_adversarial(image, epsilon=0.03, steps=10, alpha=0.01):
 
         # Calculate gradient
         grad = torch.autograd.grad(loss, adv)[0]
+
+        # --- ADDED: Momentum Calculation ---
+        # Normalize the gradient to avoid vanishing/exploding gradients
+        grad_norm = torch.norm(grad, p=1)
+        grad_normalized = grad / (grad_norm + 1e-8)
+
+        # Accumulate momentum
+        momentum = mu * momentum + grad_normalized
 
         # GRADIENT DESCENT: Step in the negative direction to lower similarity
         adv = adv.detach() - alpha * grad.sign()

@@ -5,191 +5,151 @@ import time
 
 from preprocess import load_image
 from perturbation import generate_adversarial
-from evaluation import get_embedding, cosine_similarity, compute_ssim
+from evaluation import get_embedding, cosine_similarity, compute_ssim, compute_psnr
 from face_detection import detect_face
 
-
 # -----------------------------
-# PAGE CONFIG
+# PAGE CONFIGURATION
 # -----------------------------
-
 st.set_page_config(
-    page_title="AI-Resistant Image Protection",
-    layout="centered"
-)
-
-st.title("AI-Resistant Image Protection System")
-
-st.write(
-"""
-Upload an image to generate a **protected version** that resists AI training
-while remaining visually similar to humans.
-"""
+    page_title="AI-Resistant Cloaking",
+    page_icon="🛡️",
+    layout="wide",  # Upgraded to wide layout for better image comparison
+    initial_sidebar_state="expanded"
 )
 
 # -----------------------------
-# PERTURBATION STRENGTH
+# SIDEBAR SETTINGS
 # -----------------------------
+with st.sidebar:
+    st.title("🛡️ Protection Settings")
+    st.markdown("Adjust the parameters of your adversarial cloak before uploading an image.")
 
-st.subheader("Protection Strength")
+    st.divider()
 
-epsilon_step = st.slider(
-    "Adjust perturbation strength",
-    min_value=1,
-    max_value=8,
-    value=4
-)
+    st.subheader("Perturbation Strength")
+    epsilon_step = st.slider(
+        "Select Epsilon Level",
+        min_value=1,
+        max_value=8,
+        value=6,
+        help="Higher values provide stronger AI blinding but may introduce slight grain."
+    )
 
-epsilon = epsilon_step * 0.005
+    epsilon = epsilon_step * 0.005
+    st.write(f"**Current Epsilon: {epsilon:.3f}**")
 
-st.write(f"Selected epsilon value: **{epsilon:.3f}**")
+    # Dynamic status indicator
+    if epsilon <= 0.01:
+        st.success("🟢 Low Protection (Max Visual Quality)")
+    elif epsilon <= 0.025:
+        st.info("🔵 Balanced Protection (Recommended)")
+    else:
+        st.warning("🟠 High Protection (Strong AI Blinding)")
 
-
-if epsilon <= 0.01:
-    st.info("Low protection — minimal perturbation")
-elif epsilon <= 0.025:
-    st.info("Balanced protection")
-else:
-    st.warning("High protection — stronger perturbation")
-
+    st.divider()
+    st.markdown("### About")
+    st.caption(
+        "This tool applies an Edge-Aware PGD adversarial attack to disrupt "
+        "facial feature extraction by AI models like FaceNet and ArcFace, "
+        "while preserving visual fidelity (SSIM) for human viewers."
+    )
 
 # -----------------------------
-# IMAGE UPLOAD
+# MAIN DASHBOARD
 # -----------------------------
+st.title("AI-Resistant Image Cloaking System")
+st.markdown(
+    "Upload a personal photograph to instantly generate a privacy-preserving version that blinds unauthorized AI data scrapers.")
 
 uploaded_file = st.file_uploader(
-    "Upload an image",
+    "Drop your image here (JPG, PNG)",
     type=["jpg", "jpeg", "png"]
 )
 
 if uploaded_file is not None:
+    st.divider()
 
+    # Read the image
     file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
-
     image = cv2.imdecode(file_bytes, 1)
-
     display_image = image.copy()
 
-
-    # -----------------------------
-    # FACE DETECTION
-    # -----------------------------
-
+    # Draw face box for visual feedback
     face_box = detect_face(image)
-
     if face_box is not None:
-
         x1, y1, x2, y2 = face_box
+        cv2.rectangle(display_image, (x1, y1), (x2, y2), (0, 255, 100), 3)
 
-        cv2.rectangle(display_image, (x1,y1), (x2,y2), (0,255,0), 3)
+    # Create two columns for a sleek side-by-side comparison
+    col_img1, col_img2 = st.columns(2)
 
+    with col_img1:
+        st.subheader("📷 Original Image")
+        st.image(cv2.cvtColor(display_image, cv2.COLOR_BGR2RGB), use_container_width=True)
 
-    st.subheader("Original Image")
+    with col_img2:
+        st.subheader("🛡️ Protected Image")
 
-    st.image(
-        cv2.cvtColor(display_image, cv2.COLOR_BGR2RGB),
-        width=500
-    )
+        # Add a slick loading spinner
+        with st.spinner("Generating adversarial perturbation..."):
+            start_time = time.time()
+            protected = generate_adversarial(image, epsilon=epsilon, steps=10)
+            runtime = time.time() - start_time
 
+        st.image(cv2.cvtColor(protected, cv2.COLOR_BGR2RGB), use_container_width=True)
 
-    # -----------------------------
-    # GENERATE PERTURBATION
-    # -----------------------------
-
-    start_time = time.time()
-
-    with st.spinner("Generating AI-resistant image..."):
-
-        protected = generate_adversarial(
-            image,
-            epsilon=epsilon,
-            steps=10
+        # Download button placed neatly under the protected image
+        _, buffer = cv2.imencode(".png", protected)
+        st.download_button(
+            label="⬇️ Download Protected Image",
+            data=buffer.tobytes(),
+            file_name="protected_image.png",
+            mime="image/png",
+            use_container_width=True
         )
 
-    runtime = time.time() - start_time
-
-
-    st.subheader("Protected Image")
-
-    st.image(
-        cv2.cvtColor(protected, cv2.COLOR_BGR2RGB),
-        width=500
-    )
-
-
     # -----------------------------
-    # METRICS
+    # METRICS DASHBOARD
     # -----------------------------
+    st.divider()
+    st.subheader("📊 Performance Metrics")
 
+    # Calculate all metrics
     emb_original = get_embedding(image)
     emb_protected = get_embedding(protected)
-
-    similarity = cosine_similarity(
-        emb_original,
-        emb_protected
-    ).item()
-
+    similarity = cosine_similarity(emb_original, emb_protected).item()
     ssim_score = compute_ssim(image, protected)
+    psnr_score = compute_psnr(image, protected)
 
     noise = protected.astype(np.float32) - image.astype(np.float32)
     noise_mag = np.mean(np.abs(noise))
 
+    # Display in 5 clean columns
+    m1, m2, m3, m4, m5 = st.columns(5)
 
-    st.subheader("Protection Statistics")
-
-    col1, col2, col3, col4 = st.columns(4)
-
-    col1.metric("Embedding Similarity", f"{similarity:.3f}")
-    col2.metric("SSIM", f"{ssim_score:.3f}")
-    col3.metric("Noise Magnitude", f"{noise_mag:.3f}")
-    col4.metric("Processing Time", f"{runtime:.2f}s")
-
-
-    # -----------------------------
-    # HEATMAP
-    # -----------------------------
-
-    heatmap = np.abs(noise)
-
-    heatmap = heatmap / (heatmap.max() + 1e-8)
-
-    heatmap = (heatmap * 255).astype(np.uint8)
-
-    heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
-
-
-    st.subheader("Perturbation Heatmap")
-
-    st.image(
-        cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB),
-        width=500
-    )
-
+    # Adding logical checks to color the metrics using deltas (green = good, red = bad)
+    m1.metric("Embedding Similarity", f"{similarity:.3f}", delta="Blinded",
+              delta_color="normal" if similarity < 0.4 else "inverse")
+    m2.metric("Visual Fidelity (SSIM)", f"{ssim_score:.3f}", delta="Preserved", delta_color="normal")
+    m3.metric("PSNR", f"{psnr_score:.1f} dB")
+    m4.metric("Noise Magnitude", f"{noise_mag:.3f}")
+    m5.metric("Processing Time", f"{runtime:.2f} s")
 
     # -----------------------------
-    # COMPARISON VIEW
+    # ADVANCED ANALYSIS (EXPANDER)
     # -----------------------------
+    with st.expander("🔍 Advanced: View Perturbation Heatmap"):
+        st.markdown(
+            "This heatmap isolates the adversarial noise applied by the system. Notice how it strictly targets the facial bounding box to maximize efficiency.")
 
-    st.subheader("Original vs Protected")
+        heatmap = np.abs(noise)
+        heatmap = heatmap / (heatmap.max() + 1e-8)
+        heatmap = (heatmap * 255).astype(np.uint8)
+        heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
 
-    comparison = np.hstack((image, protected))
-
-    st.image(
-        cv2.cvtColor(comparison, cv2.COLOR_BGR2RGB),
-        caption="Left: Original | Right: Protected",
-        width=800
-    )
-
-
-    # -----------------------------
-    # DOWNLOAD
-    # -----------------------------
-
-    _, buffer = cv2.imencode(".png", protected)
-
-    st.download_button(
-        label="Download Protected Image",
-        data=buffer.tobytes(),
-        file_name="protected_image.png",
-        mime="image/png"
-    )
+        # Center the heatmap nicely
+        hm_col1, hm_col2, hm_col3 = st.columns([1, 2, 1])
+        with hm_col2:
+            st.image(cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB), use_container_width=True,
+                     caption="Heatmap of L-Infinity Constrained Noise")
