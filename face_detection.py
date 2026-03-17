@@ -13,12 +13,13 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # ----------------------------
 # FACE DETECTOR
 # ----------------------------
-
 mtcnn = MTCNN(
     keep_all=False,
-    device=device
+    device=device,
+    min_face_size=20,
+    thresholds=[0.5, 0.6, 0.6], # Lowered from default [0.6, 0.7, 0.7] to catch harder faces
+    margin=14 # Adds a slight padding around the face to help FaceNet
 )
-
 
 # ----------------------------
 # FACE DETECTION FUNCTION
