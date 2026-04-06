@@ -11,7 +11,7 @@ from face_detection import detect_face
 # SETTINGS
 # ----------------------------
 
-IMAGE_PATH = "images/IMG_3055.JPG"
+IMAGE_PATH = "images/IMG_2302.JPG"
 EPSILON = 0.03
 
 
@@ -99,14 +99,17 @@ heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
 # ----------------------------
 # COMPARISON IMAGE
 # ----------------------------
+comparison = np.hstack((display_original, protected))
 
-comparison = np.hstack((original, protected))
-
+# Convert everything back to BGR strictly for the cv2 popup windows
+display_original_bgr = cv2.cvtColor(display_original, cv2.COLOR_RGB2BGR)
+protected_bgr = cv2.cvtColor(protected, cv2.COLOR_RGB2BGR)
+comparison_bgr = cv2.cvtColor(comparison, cv2.COLOR_RGB2BGR)
+# Note: cv2.applyColorMap already outputs BGR, so heatmap stays as is
 
 # ----------------------------
 # DISPLAY WINDOWS
 # ----------------------------
-
 cv2.namedWindow("Original Image", cv2.WINDOW_NORMAL)
 cv2.namedWindow("Protected Image", cv2.WINDOW_NORMAL)
 cv2.namedWindow("Perturbation Heatmap", cv2.WINDOW_NORMAL)
@@ -117,10 +120,10 @@ cv2.resizeWindow("Protected Image", 700, 700)
 cv2.resizeWindow("Perturbation Heatmap", 700, 700)
 cv2.resizeWindow("Original vs Protected", 1200, 600)
 
-cv2.imshow("Original Image", display_original)
-cv2.imshow("Protected Image", protected)
+cv2.imshow("Original Image", display_original_bgr)
+cv2.imshow("Protected Image", protected_bgr)
 cv2.imshow("Perturbation Heatmap", heatmap)
-cv2.imshow("Original vs Protected", comparison)
+cv2.imshow("Original vs Protected", comparison_bgr)
 
 cv2.waitKey(0)
 cv2.destroyAllWindows()

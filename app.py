@@ -31,7 +31,7 @@ with st.sidebar:
     epsilon_step = st.slider(
         "Select Epsilon Level",
         min_value=1,
-        max_value=8,
+        max_value=10,
         value=6,
         help="Higher values provide stronger AI blinding but may introduce slight grain."
     )
@@ -70,37 +70,42 @@ uploaded_file = st.file_uploader(
 if uploaded_file is not None:
     st.divider()
 
-    # Read the image
+    # 1. Read the image (OpenCV loads as BGR)
     file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
-    image = cv2.imdecode(file_bytes, 1)
-    display_image = image.copy()
+    image_bgr = cv2.imdecode(file_bytes, 1)
 
-    # Draw face box for visual feedback
-    face_box = detect_face(image)
+    # 2. CRITICAL FIX: Convert to RGB immediately for the PyTorch backend
+    image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+    display_image = image_rgb.copy()
+
+    # Draw face box for visual feedback (using the RGB image)
+    face_box = detect_face(image_rgb)
     if face_box is not None:
         x1, y1, x2, y2 = face_box
         cv2.rectangle(display_image, (x1, y1), (x2, y2), (0, 255, 100), 3)
 
-    # Create two columns for a sleek side-by-side comparison
     col_img1, col_img2 = st.columns(2)
 
     with col_img1:
         st.subheader("📷 Original Image")
-        st.image(cv2.cvtColor(display_image, cv2.COLOR_BGR2RGB), use_container_width=True)
+        # Since display_image is already RGB, we don't need to convert it here
+        st.image(display_image, use_container_width=True)
 
     with col_img2:
         st.subheader("🛡️ Protected Image")
 
-        # Add a slick loading spinner
         with st.spinner("Generating adversarial perturbation..."):
             start_time = time.time()
-            protected = generate_adversarial(image, epsilon=epsilon, steps=10)
+            # 3. Pass the RGB image to the attack function
+            protected_rgb = generate_adversarial(image_rgb, epsilon=epsilon, steps=10)
             runtime = time.time() - start_time
 
-        st.image(cv2.cvtColor(protected, cv2.COLOR_BGR2RGB), use_container_width=True)
+        # Display the RGB protected image
+        st.image(protected_rgb, use_container_width=True)
 
-        # Download button placed neatly under the protected image
-        _, buffer = cv2.imencode(".png", protected)
+        # 4. Convert back to BGR ONLY for downloading
+        protected_bgr = cv2.cvtColor(protected_rgb, cv2.COLOR_RGB2BGR)
+        _, buffer = cv2.imencode(".png", protected_bgr)
         st.download_button(
             label="⬇️ Download Protected Image",
             data=buffer.tobytes(),
@@ -115,14 +120,15 @@ if uploaded_file is not None:
     st.divider()
     st.subheader("📊 Performance Metrics")
 
-    # Calculate all metrics
-    emb_original = get_embedding(image)
-    emb_protected = get_embedding(protected)
+    # 5. Calculate metrics using the RGB images!
+    emb_original = get_embedding(image_rgb)
+    emb_protected = get_embedding(protected_rgb)
     similarity = cosine_similarity(emb_original, emb_protected).item()
-    ssim_score = compute_ssim(image, protected)
-    psnr_score = compute_psnr(image, protected)
 
-    noise = protected.astype(np.float32) - image.astype(np.float32)
+    ssim_score = compute_ssim(image_rgb, protected_rgb)
+    psnr_score = compute_psnr(image_rgb, protected_rgb)
+
+    noise = protected_rgb.astype(np.float32) - image_rgb.astype(np.float32)
     noise_mag = np.mean(np.abs(noise))
 
     # Display in 5 clean columns

@@ -98,8 +98,9 @@ def run_master_transfer_test():
             prot_crop_160 = cv2.resize(prot_face, (160, 160))
 
             # 5. Save the isolated 160x160 crops to Disk for DeepFace
-            cv2.imwrite(os.path.join(TEMP_FOLDER, f"orig_{img_name}"), orig_crop_160)
-            cv2.imwrite(os.path.join(TEMP_FOLDER, f"prot_{img_name}"), prot_crop_160)
+            # Convert RGB to BGR before saving to hard drive
+            cv2.imwrite(os.path.join(TEMP_FOLDER, f"orig_{img_name}"), cv2.cvtColor(orig_crop_160, cv2.COLOR_RGB2BGR))
+            cv2.imwrite(os.path.join(TEMP_FOLDER, f"prot_{img_name}"), cv2.cvtColor(prot_crop_160, cv2.COLOR_RGB2BGR))
 
             valid_images.append(img_name)
             print(f"  [{i}/{len(images)}] Generated & Cached crops for {img_name}")

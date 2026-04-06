@@ -41,13 +41,17 @@ def generate_adversarial(image, epsilon=0.03, steps=10, alpha=0.01):
         original_embedding = model(original).detach()
 
     # 4. Streamlined & Aggressive PGD Loop
-    adv = original.clone().detach()
-    momentum = torch.zeros_like(original)  # ADDED: Initialize momentum
-    mu = 1.0  # ADDED: Momentum decay factor
+
+    # THE FIX 1: PGD Random Start
+    # Nudge the image off the "Zero-Gradient" peak so Step 1 fires at maximum power
+    random_noise = torch.empty_like(original).uniform_(-epsilon / 2, epsilon / 2)
+    adv = torch.clamp(original + random_noise, 0.0, 1.0).detach()
+
+    momentum = torch.zeros_like(original)
+    mu = 1.0
 
     for _ in range(steps):
         adv.requires_grad = True
-
         embedding = model(adv)
 
         # LOSS: We want to MINIMIZE cosine similarity to the original identity
@@ -56,7 +60,6 @@ def generate_adversarial(image, epsilon=0.03, steps=10, alpha=0.01):
         # Calculate gradient
         grad = torch.autograd.grad(loss, adv)[0]
 
-        # --- ADDED: Momentum Calculation ---
         # Normalize the gradient to avoid vanishing/exploding gradients
         grad_norm = torch.norm(grad, p=1)
         grad_normalized = grad / (grad_norm + 1e-8)
@@ -64,7 +67,7 @@ def generate_adversarial(image, epsilon=0.03, steps=10, alpha=0.01):
         # Accumulate momentum
         momentum = mu * momentum + grad_normalized
 
-        # GRADIENT DESCENT: Step in the negative direction to lower similarity
+        # GRADIENT DESCENT: Step in the negative direction
         adv = adv.detach() - alpha * momentum.sign()
 
         # L-Infinity Projection (Keep noise within epsilon bounds)

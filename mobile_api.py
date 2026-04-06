@@ -19,14 +19,18 @@ async def protect_image(
         # 1. Receive image from the UI
         contents = await file.read()
         nparr = np.frombuffer(contents, np.uint8)
-        image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        image_bgr = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
-        # 2. Run your verified math engine
-        # This function handles MTCNN and 160x160 internally
-        protected_img = generate_adversarial(image, epsilon=epsilon, steps=iters)
+        # 2. CRITICAL FIX: Convert to RGB for the PyTorch backend
+        image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
 
-        # 3. Encode and return to UI
-        _, encoded_img = cv2.imencode('.png', protected_img)
+        # 3. Run your verified math engine
+        protected_rgb = generate_adversarial(image_rgb, epsilon=epsilon, steps=iters)
+
+        # 4. Convert back to BGR for encoding and sending to the phone
+        protected_bgr = cv2.cvtColor(protected_rgb, cv2.COLOR_RGB2BGR)
+        _, encoded_img = cv2.imencode('.png', protected_bgr)
+
         return StreamingResponse(io.BytesIO(encoded_img.tobytes()), media_type="image/png")
 
     except Exception as e:

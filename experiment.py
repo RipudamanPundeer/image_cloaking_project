@@ -21,11 +21,17 @@ plt.style.use('ggplot')
 # -----------------------------
 # COMPRESSION FUNCTION
 # -----------------------------
-def simulate_compression(image, quality=60):
+def simulate_compression(image, quality=60):  # Note: robustness_test uses quality=50
+    # 1. Convert RGB to BGR for OpenCV encoder
+    bgr_img = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+
+    # 2. Compress
     encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), quality]
-    _, encimg = cv2.imencode('.jpg', image, encode_param)
+    _, encimg = cv2.imencode('.jpg', bgr_img, encode_param)
     decimg = cv2.imdecode(encimg, 1)
-    return decimg
+
+    # 3. Convert back to RGB for the PyTorch metrics
+    return cv2.cvtColor(decimg, cv2.COLOR_BGR2RGB)
 
 
 # -----------------------------

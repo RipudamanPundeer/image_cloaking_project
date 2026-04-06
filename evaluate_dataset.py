@@ -1,15 +1,15 @@
 import os
 import time
 import numpy as np
-
+from face_detection import detect_face
 from preprocess import load_image
 from perturbation import generate_adversarial
 from evaluation import get_embedding, cosine_similarity, compute_ssim, compute_psnr
 # -----------------------------
 # CONFIGURATION
 # -----------------------------
-IMAGE_FOLDER = "images"  # Point this to your folder of 124 photos
-EPSILON = 0.03  # Set your target perturbation strength
+IMAGE_FOLDER = "subset"  # Point this to your folder of 124 photos
+EPSILON = 0.025  # Set your target perturbation strength
 
 
 def evaluate_all():
@@ -33,6 +33,10 @@ def evaluate_all():
         try:
             # 1. Load and process
             image = load_image(path)
+            # skip logic!
+            if detect_face(image) is None:
+                print(f"  -> Skipping {img_name}: No face detected.")
+                continue
             protected = generate_adversarial(image, EPSILON)
 
             # 2. Get embeddings
