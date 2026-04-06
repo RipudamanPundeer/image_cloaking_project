@@ -65,7 +65,7 @@ def generate_adversarial(image, epsilon=0.03, steps=10, alpha=0.01):
         momentum = mu * momentum + grad_normalized
 
         # GRADIENT DESCENT: Step in the negative direction to lower similarity
-        adv = adv.detach() - alpha * grad.sign()
+        adv = adv.detach() - alpha * momentum.sign()
 
         # L-Infinity Projection (Keep noise within epsilon bounds)
         delta = torch.clamp(adv - original, -epsilon, epsilon)
