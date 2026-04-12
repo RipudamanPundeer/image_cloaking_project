@@ -26,9 +26,9 @@ tf.config.threading.set_inter_op_parallelism_threads(2)
 # -----------------------------
 # SETTINGS
 # -----------------------------
-IMAGE_FOLDER = "images"
+IMAGE_FOLDER = "subset"
 TEMP_FOLDER = "temp_crops"
-EPSILON = 0.05
+EPSILON = 0.03
 RESULTS_FILE = "master_transferability_results.csv"
 
 DEEPFACE_MODELS = ["Facenet", "ArcFace", "VGG-Face"]

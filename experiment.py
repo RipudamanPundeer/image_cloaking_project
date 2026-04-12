@@ -12,7 +12,7 @@ from evaluation import get_embedding, cosine_similarity, compute_ssim, compute_p
 # SETTINGS
 # -----------------------------
 IMAGE_FOLDER = "images"
-epsilons = [0.005, 0.01, 0.015, 0.02, 0.025, 0.03, 0.035]
+epsilons = [0.005, 0.01, 0.015, 0.02, 0.025, 0.03, 0.035,0.04,0.045]
 
 # Set Matplotlib style for beautiful, colorful graphs
 plt.style.use('ggplot')

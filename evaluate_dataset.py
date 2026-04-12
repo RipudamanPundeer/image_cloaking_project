@@ -8,7 +8,7 @@ from evaluation import get_embedding, cosine_similarity, compute_ssim, compute_p
 # -----------------------------
 # CONFIGURATION
 # -----------------------------
-IMAGE_FOLDER = "subset"  # Point this to your folder of 124 photos
+IMAGE_FOLDER = "images"  # Point this to your folder of 124 photos
 EPSILON = 0.025  # Set your target perturbation strength
 
 
